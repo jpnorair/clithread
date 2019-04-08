@@ -46,7 +46,6 @@ clithread_handle_t clithread_init(void) {
 
 clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t* attr, int poolsize, void* (*start_routine)(void*), clithread_args_t* arg) {
     clithread_item_t* newitem;
-    clithread_item_t* head;
     
     if (handle == NULL) {
         return NULL;
@@ -81,14 +80,15 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
             goto clithread_add_ERR;
         }
         
+        newitem->xid    = 0;
+        
         //pthread_detach(newitem->client);
-        head            = *(clithread_item_t**)handle;
         newitem->prev   = NULL;
-        newitem->next   = head;
-        if (head != NULL) {
-            head->prev  = newitem;
+        newitem->next   = *(clithread_item_t**)handle;
+        if (*(clithread_item_t**)handle != NULL) {
+            (*(clithread_item_t**)handle)->prev  = newitem;
         }
-        head            = newitem;
+        *(clithread_item_t**)handle = newitem;
     }
 
     return newitem;
@@ -181,6 +181,35 @@ void clithread_deinit(clithread_handle_t handle) {
         
         /// Free the handle itself
         free(handle);
+    }
+}
+
+
+clithread_xid_t clithread_chxid(clithread_item_t* item, clithread_xid_t new_xid) {
+    clithread_xid_t old_xid = 0;
+
+    if (item != NULL) {
+        old_xid     = item->xid;
+        item->xid   = new_xid;
+    }
+    
+    return old_xid;
+}
+
+
+void clithread_publish(clithread_handle_t handle, clithread_xid_t xid, uint8_t* msg, size_t msgsize) {
+    clithread_item_t* head;
+    
+    if (handle != NULL) {
+        head = *(clithread_item_t**)handle;
+
+        /// Push the message to all clithreads that have active fd_out and matching xid.
+        while (head != NULL) {
+            if ((head->args.fd_out > 0) && (head->xid == xid)) {
+                write(head->args.fd_out, msg, msgsize);
+            }
+            head = head->next;
+        }
     }
 }
 

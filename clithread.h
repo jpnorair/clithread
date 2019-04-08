@@ -24,6 +24,7 @@
 // talloc library from /usr/local/include
 #include <talloc.h>
 
+#include <stdint.h>
 #include <pthread.h>
 
 
@@ -35,7 +36,10 @@ typedef struct {
     TALLOC_CTX* tctx;
 } clithread_args_t;
 
+typedef uint32_t clithread_xid_t;
+
 typedef struct ptlist {
+    clithread_xid_t     xid;
     pthread_t           client;
     clithread_args_t    args;
     struct ptlist*      prev;
@@ -66,7 +70,9 @@ void clithread_del(clithread_item_t* item);
 
 void clithread_deinit(clithread_handle_t handle);
 
+clithread_xid_t clithread_chxid(clithread_item_t* item, clithread_xid_t new_xid);
 
+void clithread_publish(clithread_handle_t handle, clithread_xid_t xid, uint8_t* msg, size_t msgsize);
 
 
 
