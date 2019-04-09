@@ -111,6 +111,7 @@ static void sub_clithread_free(void* self) {
     // This will free all data allocated on this context via talloc
     talloc_free(item->args.tctx);
     
+    // Now free the item itself
     free(item);
 
     /// If previtem==NULL, this item is the head
@@ -175,8 +176,11 @@ void clithread_deinit(clithread_handle_t handle) {
             
             pthread_cancel(head->client);
             pthread_join(head->client, NULL);
-            talloc_free(head->args.tctx);
-            free(head);
+            
+            // These free operations are unnecessary because they are taken care-of in
+            // the thread exit routine.
+            //talloc_free(head->args.tctx);
+            //free(head);
         }
         
         /// Free the handle itself
