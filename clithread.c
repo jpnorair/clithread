@@ -44,7 +44,7 @@ clithread_handle_t clithread_init(void) {
 }
 
 
-clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t* attr, int poolsize, void* (*start_routine)(void*), clithread_args_t* arg) {
+clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t* attr, size_t est_allocs, size_t poolsize, void* (*start_routine)(void*), clithread_args_t* arg) {
     clithread_item_t* newitem;
     
     if (handle == NULL) {
@@ -70,7 +70,7 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
         
         // If a talloc context is not provided explicitly, create one
         if (newitem->args.tctx == NULL) {
-            newitem->args.tctx = talloc_pool(NULL, poolsize);
+            newitem->args.tctx = talloc_pooled_object(NULL, void*, (unsigned int)est_allocs, poolsize);
             if (newitem->args.tctx == NULL) {
                 goto clithread_add_ERR;
             }
