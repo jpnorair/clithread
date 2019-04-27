@@ -201,6 +201,9 @@ clithread_xid_t clithread_chxid(clithread_item_t* item, clithread_xid_t new_xid)
 }
 
 
+///@todo this fails and hangs in the loop when a thread drops before this gets called
+///      or possibly in the middle of it being called.  Need a synchronization hook to
+///      know if a thread drops.
 void clithread_publish(clithread_handle_t handle, clithread_xid_t xid, uint8_t* msg, size_t msgsize) {
     clithread_item_t* head;
     
