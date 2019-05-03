@@ -68,6 +68,8 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
 
     newitem = malloc(sizeof(clithread_item_t));
     if (newitem != NULL) {
+        struct timespec alarm;
+    
         if (arg == NULL) {
             newitem->args.app_handle= NULL;
             newitem->args.fd_in     = -1;
@@ -97,25 +99,23 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
         }
         
         // Wait for the thread to release via clithread_release.
-        {   struct timespec alarm;
-            clock_gettime(CLOCK_REALTIME, &alarm);
-            alarm.tv_sec += 1;
-            pthread_mutex_lock(&add_wait.mutex);
-            rc = pthread_cond_timedwait(&add_wait.cond, &add_wait.mutex);
-            pthread_mutex_unlock(&add_wait.mutex);
+        clock_gettime(CLOCK_REALTIME, &alarm);
+        alarm.tv_sec += 1;
+        pthread_mutex_lock(&add_wait.mutex);
+        rc = pthread_cond_timedwait(&add_wait.cond, &add_wait.mutex, &alarm);
+        pthread_mutex_unlock(&add_wait.mutex);
+        if (rc != 0) {
+            goto clithread_add_ERR;
         }
         
-        if (rc == 0) {
-            newitem->xid = 0;
-            //pthread_detach(newitem->client);
-            newitem->prev   = NULL;
-            newitem->next   = *(clithread_item_t**)handle;
-            if (*(clithread_item_t**)handle != NULL) {
-                (*(clithread_item_t**)handle)->prev  = newitem;
-            }
-            *(clithread_item_t**)handle = newitem;
+        newitem->xid = 0;
+        //pthread_detach(newitem->client);
+        newitem->prev   = NULL;
+        newitem->next   = *(clithread_item_t**)handle;
+        if (*(clithread_item_t**)handle != NULL) {
+            (*(clithread_item_t**)handle)->prev  = newitem;
         }
-
+        *(clithread_item_t**)handle = newitem;
     }
     
     return newitem;
@@ -129,7 +129,7 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
 
 int clithread_sigup(clithread_item_t* client) {
     pthread_mutex_lock(&add_wait.mutex);
-    pthread_signal(&add_wait.cond);
+    pthread_cond_signal(&add_wait.cond);
     pthread_mutex_unlock(&add_wait.mutex);
     return 0;
 }
