@@ -44,6 +44,7 @@ typedef struct ptlist {
     clithread_args_t    args;
     struct ptlist*      prev;
     struct ptlist*      next;
+    void*               internal;
 } clithread_item_t;
 
 typedef clithread_item_t** clithread_handle_t;
@@ -52,6 +53,8 @@ typedef clithread_item_t** clithread_handle_t;
 clithread_handle_t clithread_init(void);
 
 clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t* attr, size_t est_allocs, size_t poolsize, void* (*start_routine)(void*), clithread_args_t* arg);
+
+int clithread_sigup(clithread_item_t*);
 
 
 /** @brief Client thread must call this upon exit or return

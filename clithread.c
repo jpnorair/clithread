@@ -30,9 +30,23 @@
 #include <ctype.h>
 
 
+typedef struct {
+    bool            predicate;
+    pthread_cond_t  cond;
+    pthread_mutex_t mutex;
+} waiter_t;
+
+static waiter_t add_wait;
+
+
 
 clithread_handle_t clithread_init(void) {
     clithread_item_t** head;
+    
+    if ((pthread_mutex_init(&add_wait.mutex, NULL) != 0)
+    ||  (pthread_cond_init(&add_wait.cond, NULL) != 0)) {
+        return NULL;
+    }
     
     head = malloc(sizeof(clithread_item_t*));
     if (head == NULL) {
@@ -46,7 +60,8 @@ clithread_handle_t clithread_init(void) {
 
 clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t* attr, size_t est_allocs, size_t poolsize, void* (*start_routine)(void*), clithread_args_t* arg) {
     clithread_item_t* newitem;
-    
+    int rc;
+
     if (handle == NULL) {
         return NULL;
     }
@@ -62,12 +77,12 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
         else {
             newitem->args = *arg;
         }
-        
+
         // This self linkage enables the thread to use:
         // pthread_cleanup_push(&clithread_selfclean, args->clithread_self);
         // To cleanup after itself
         newitem->args.clithread_self = (void*)newitem;
-        
+
         // If a talloc context is not provided explicitly, create one
         if (newitem->args.tctx == NULL) {
             newitem->args.tctx = talloc_pooled_object(NULL, void*, (unsigned int)est_allocs, poolsize);
@@ -76,26 +91,47 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
             }
         }
         
+        // The first thing alloced to the thread internal heap is the internal data
         if (pthread_create(&newitem->client, attr, start_routine, (void*)&newitem->args) != 0) {
             goto clithread_add_ERR;
         }
         
-        newitem->xid    = 0;
-        
-        //pthread_detach(newitem->client);
-        newitem->prev   = NULL;
-        newitem->next   = *(clithread_item_t**)handle;
-        if (*(clithread_item_t**)handle != NULL) {
-            (*(clithread_item_t**)handle)->prev  = newitem;
+        // Wait for the thread to release via clithread_release.
+        {   struct timespec alarm;
+            clock_gettime(CLOCK_REALTIME, &alarm);
+            alarm.tv_sec += 1;
+            pthread_mutex_lock(&add_wait.mutex);
+            rc = pthread_cond_timedwait(&add_wait.cond, &add_wait.mutex);
+            pthread_mutex_unlock(&add_wait.mutex);
         }
-        *(clithread_item_t**)handle = newitem;
-    }
+        
+        if (rc == 0) {
+            newitem->xid = 0;
+            //pthread_detach(newitem->client);
+            newitem->prev   = NULL;
+            newitem->next   = *(clithread_item_t**)handle;
+            if (*(clithread_item_t**)handle != NULL) {
+                (*(clithread_item_t**)handle)->prev  = newitem;
+            }
+            *(clithread_item_t**)handle = newitem;
+        }
 
+    }
+    
     return newitem;
     
     clithread_add_ERR:
+    talloc_free(newitem->args.tctx);
     free(newitem);
     return NULL;
+}
+
+
+int clithread_sigup(clithread_item_t* client) {
+    pthread_mutex_lock(&add_wait.mutex);
+    pthread_signal(&add_wait.cond);
+    pthread_mutex_unlock(&add_wait.mutex);
+    return 0;
 }
 
 
@@ -182,6 +218,10 @@ void clithread_deinit(clithread_handle_t handle) {
             //talloc_free(head->args.tctx);
             //free(head);
         }
+        
+        /// Destroy mutex and conds
+        pthread_cond_destroy(&add_wait.cond);
+        pthread_mutex_destroy(&add_wait.mutex);
         
         /// Free the handle itself
         free(handle);
