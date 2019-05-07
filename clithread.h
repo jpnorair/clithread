@@ -44,13 +44,21 @@ typedef struct ptlist {
     clithread_args_t    args;
     struct ptlist*      prev;
     struct ptlist*      next;
-    void*               internal;
+    void*               parent;
 } clithread_item_t;
 
-typedef clithread_item_t** clithread_handle_t;
+typedef struct {
+    clithread_item_t*   head;
+    size_t              size;
+    //bool                predicate;
+    pthread_cond_t      cond;
+    pthread_mutex_t     mutex;
+} clithread_t;
+
+typedef clithread_t* clithread_handle_t;
 
 
-clithread_handle_t clithread_init(void);
+int clithread_init(clithread_handle_t* handle);
 
 clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t* attr, size_t est_allocs, size_t poolsize, void* (*start_routine)(void*), clithread_args_t* arg);
 
