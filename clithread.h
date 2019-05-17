@@ -24,6 +24,7 @@
 // talloc library from /usr/local/include
 #include <talloc.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <pthread.h>
 
@@ -50,7 +51,7 @@ typedef struct ptlist {
 typedef struct {
     clithread_item_t*   head;
     size_t              size;
-    //bool                predicate;
+    bool                predicate;
     pthread_cond_t      cond;
     pthread_mutex_t     mutex;
 } clithread_t;

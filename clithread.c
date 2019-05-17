@@ -30,16 +30,6 @@
 #include <ctype.h>
 
 
-typedef struct {
-    bool            predicate;
-    pthread_cond_t  cond;
-    pthread_mutex_t mutex;
-} waiter_t;
-
-static waiter_t add_wait;
-
-
-
 int clithread_init(clithread_handle_t* handle) {
     clithread_t* ct;
     
@@ -109,6 +99,8 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
             }
         }
         
+        pthread_mutex_lock(&cth->mutex);
+        
         // The first thing alloced to the thread internal heap is the internal data
         if (pthread_create(&newitem->client, attr, start_routine, (void*)&newitem->args) != 0) {
             goto clithread_add_ERR1;
@@ -117,8 +109,11 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
         // Wait for the thread to release via clithread_release.
         clock_gettime(CLOCK_REALTIME, &alarm);
         alarm.tv_sec += 1;
-        pthread_mutex_lock(&cth->mutex);
-        rc = pthread_cond_timedwait(&cth->cond, &cth->mutex, &alarm);
+        cth->predicate = true;
+        rc = 0;
+        while (cth->predicate && (rc == 0)) {
+            rc = pthread_cond_timedwait(&cth->cond, &cth->mutex, &alarm);
+        }
         pthread_mutex_unlock(&cth->mutex);
         if (rc != 0) {
             goto clithread_add_ERR2;
@@ -164,6 +159,7 @@ int clithread_sigup(clithread_item_t* client) {
         cth = client->parent;
         if (cth != NULL) {
             pthread_mutex_lock(&cth->mutex);
+            cth->predicate = false;
             pthread_cond_signal(&cth->cond);
             pthread_mutex_unlock(&cth->mutex);
             return 0;
