@@ -61,7 +61,6 @@ int clithread_init(clithread_handle_t* handle) {
 clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t* attr, size_t est_allocs, size_t poolsize, void* (*start_routine)(void*), clithread_args_t* arg) {
     clithread_t* cth;
     clithread_item_t* newitem;
-    clithread_item_t* head;
     int rc;
 
     if (handle == NULL) {
@@ -209,22 +208,27 @@ static void sub_clithread_free(void* item) {
 
 void clithread_exit(void* self) {
 ///@note to be used at the end of a thread that's created by clithread_add()
-    clithread_item_t* item;
 
     if (self != NULL) {
-        item = (clithread_item_t*)self;
-
+        clithread_item_t* item  = (clithread_item_t*)self;
+        clithread_t* cth        = item->parent;
+        
+        pthread_mutex_lock(&cth->mutex);
+        
         // If there's a parent object (there should be), adjust linkage to remove this thread.
-        sub_unlink_item((clithread_t*)item->parent, item);
+        sub_unlink_item(cth, item);
     
         // Thread will detach itself, meaning that no other thread needs to join it
         pthread_detach(item->client);
+        pthread_mutex_unlock(&cth->mutex);
     
         // This is a cleanup handler that will free the thread from the clithread
         // list, after the thread terminates.
         pthread_cleanup_push(&sub_clithread_free, item);
         pthread_exit(NULL);
         pthread_cleanup_pop(1);
+        
+        
     }
 }
 
@@ -232,11 +236,17 @@ void clithread_exit(void* self) {
 
 void clithread_del(clithread_item_t* item) {
     if (item != NULL) {
-        sub_unlink_item((clithread_t*)item->parent, item);
+        clithread_t* cth = item->parent;
+        
+        pthread_mutex_lock(&cth->mutex);
+        
+        sub_unlink_item(cth, item);
     
         pthread_cancel(item->client);
         pthread_join(item->client, NULL);
         sub_clithread_free(item);
+        
+        pthread_mutex_unlock(&cth->mutex);
     }
 }
 
@@ -281,9 +291,11 @@ void clithread_publish(clithread_handle_t handle, clithread_xid_t xid, uint8_t* 
     clithread_item_t* item;
 
     if (handle != NULL) {
-        cth     = handle;
-        item    = cth->head;
-
+        cth = handle;
+        
+        pthread_mutex_lock(&cth->mutex);
+        item = cth->head;
+        
         /// Push the message to all clithreads that have active fd_out and matching xid.
         while (item != NULL) {
             if ((item->args.fd_out > 0) && (item->xid == xid)) {
@@ -291,6 +303,8 @@ void clithread_publish(clithread_handle_t handle, clithread_xid_t xid, uint8_t* 
             }
             item = item->next;
         }
+        
+        pthread_mutex_unlock(&cth->mutex);
     }
 }
 
