@@ -113,7 +113,6 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
         while (cth->predicate && (rc == 0)) {
             rc = pthread_cond_timedwait(&cth->cond, &cth->mutex, &alarm);
         }
-        pthread_mutex_unlock(&cth->mutex);
         if (rc != 0) {
             goto clithread_add_ERR2;
         }
@@ -132,7 +131,7 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
         // Final step: update the handle parameters
         cth->size++;
         cth->head = newitem;
-
+        pthread_mutex_unlock(&cth->mutex);
     }
     
     return newitem;
@@ -141,6 +140,7 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
     if (pthread_cancel(newitem->client) == 0) {
         pthread_join(newitem->client, NULL);
     }
+    pthread_mutex_unlock(&cth->mutex);
     
     clithread_add_ERR1:
     talloc_free(newitem->args.tctx);
@@ -191,6 +191,9 @@ static void sub_unlink_item(clithread_t* cth, clithread_item_t* item) {
             if (nextitem != NULL) {
                 nextitem->prev = previtem;
             }
+            if (item == cth->head) {
+                cth->head = nextitem;
+            }
         }
     }
 }
@@ -227,8 +230,6 @@ void clithread_exit(void* self) {
         pthread_cleanup_push(&sub_clithread_free, item);
         pthread_exit(NULL);
         pthread_cleanup_pop(1);
-        
-        
     }
 }
 
