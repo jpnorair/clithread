@@ -52,6 +52,7 @@ RESDIR      :=
 LIB         := $(EXT_LIB)
 INC         := -I$(INCDIR) -I./../_hbsys/$(TARGET)/include $(EXT_INC) 
 INCDEP      := -I$(INCDIR) -I./../_hbsys/$(TARGET)/include $(EXT_INC) 
+LIBMODULES  := hbutils
 
 #SOURCES     := $(shell find $(SRCDIR) -type f -name "*.$(SRCEXT)")
 SOURCES     := $(shell ls $(SRCDIR)/*.$(SRCEXT))
@@ -60,9 +61,10 @@ OBJECTS     := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.$(OBJE
 
 
 all: lib
+deps: $(LIBMODULES)
 lib: resources $(PRODUCTS)
 remake: cleaner all
-pkg: lib install
+pkg: deps lib install
 debug: resources libclithread.a
 pkgdebug: debug install
 
@@ -112,6 +114,10 @@ libclithread.debug.a: $(OBJECTS)
 	ar -rcs $(APPDIR)/$@ $(OBJECTS)
 	ranlib $(APPDIR)/$@
 
+
+#Library dependencies (not in local sources)
+$(LIBMODULES): %: 
+	cd ./../$@ && $(MAKE) pkg
 
 
 #Compile
