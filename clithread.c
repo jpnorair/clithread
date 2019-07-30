@@ -19,6 +19,8 @@
 #include "clithread.h"
 //#include "debug.h"
 
+#include <hbutils.h>
+
 // Standard C & POSIX Libraries
 #include <pthread.h>
 #include <stdbool.h>
@@ -211,7 +213,7 @@ static void sub_clithread_free(void* item) {
 
 void clithread_exit(void* self) {
 ///@note to be used at the end of a thread that's created by clithread_add()
-
+    
     if (self != NULL) {
         clithread_item_t* item  = (clithread_item_t*)self;
         clithread_t* cth        = item->parent;
@@ -224,7 +226,8 @@ void clithread_exit(void* self) {
         // Thread will detach itself, meaning that no other thread needs to join it
         pthread_detach(item->client);
         pthread_mutex_unlock(&cth->mutex);
-    
+        
+        
         // This is a cleanup handler that will free the thread from the clithread
         // list, after the thread terminates.
         pthread_cleanup_push(&sub_clithread_free, item);

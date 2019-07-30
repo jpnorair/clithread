@@ -3,6 +3,7 @@ LD := ld
 
 THISMACHINE ?= $(shell uname -srm | sed -e 's/ /-/g')
 THISSYSTEM	?= $(shell uname -s)
+TARGET      ?= $(THISMACHINE)
 
 VERSION     ?= 0.5.0
 PACKAGEDIR  ?= ./../_hbpkg/$(THISMACHINE)/clithread.$(VERSION)
@@ -19,19 +20,38 @@ else
 	error "THISSYSTEM set to unknown value: $(THISSYSTEM)"
 endif
 
+ifeq ($(MAKECMDGOALS),debug)
+	APPDIR      := bin/$(THISMACHINE)
+	BUILDDIR    := build/$(THISMACHINE)_debug
+	DEBUG_MODE  := 1
+else
+	APPDIR   := bin/$(THISMACHINE)
+	BUILDDIR    := build/$(THISMACHINE)
+	DEBUG_MODE  := 0
+endif
+
+ifneq ($(DEBUG_MODE),0)
+	ifeq ($(DEBUG_MODE),1)
+		CFLAGS  ?= -std=gnu99 -O2 -Wall -pthread -D__DEBUG__
+	else
+		CFLAGS  ?= -std=gnu99 -O -g -Wall -pthread -D__DEBUG__
+	endif
+	SRCEXT      := c
+	DEPEXT      := dd
+	OBJEXT      := do
+else 
+	CFLAGS      ?= -std=gnu99 -O3 -pthread
+	SRCEXT      := c
+	DEPEXT      := d
+	OBJEXT      := o
+endif
+
 SRCDIR      := .
 INCDIR      := .
-BUILDDIR    := build/$(THISMACHINE)
-TARGETDIR   := bin/$(THISMACHINE)
 RESDIR      := 
-SRCEXT      := c
-DEPEXT      := d
-OBJEXT      := o
-
-CFLAGS      ?= -std=gnu99 -O3 -fPIC
 LIB         := $(EXT_LIB)
-INC         := -I$(INCDIR) $(EXT_INC) 
-INCDEP      := -I$(INCDIR) $(EXT_INC) 
+INC         := -I$(INCDIR) -I./../_hbsys/$(TARGET)/include $(EXT_INC) 
+INCDEP      := -I$(INCDIR) -I./../_hbsys/$(TARGET)/include $(EXT_INC) 
 
 #SOURCES     := $(shell find $(SRCDIR) -type f -name "*.$(SRCEXT)")
 SOURCES     := $(shell ls $(SRCDIR)/*.$(SRCEXT))
@@ -43,12 +63,15 @@ all: lib
 lib: resources $(PRODUCTS)
 remake: cleaner all
 pkg: lib install
+debug: resources libclithread.a
+pkgdebug: debug install
+
 
 install:
 	@rm -rf $(PACKAGEDIR)
 	@mkdir -p $(PACKAGEDIR)
 	@rm -f $(PACKAGEDIR)/../clithread
-	@cp -R $(TARGETDIR)/* $(PACKAGEDIR)/
+	@cp -R $(APPDIR)/* $(PACKAGEDIR)/
 	@cp -R ./*.h $(PACKAGEDIR)/
 	@ln -s clithread.$(VERSION) ./$(PACKAGEDIR)/../clithread
 	cd ../_hbsys && $(MAKE) sys_install INS_MACHINE=$(THISMACHINE) INS_PKGNAME=clithread
@@ -58,7 +81,7 @@ resources: directories
 
 #Make the Directories
 directories:
-	@mkdir -p $(TARGETDIR)
+	@mkdir -p $(APPDIR)
 	@mkdir -p $(BUILDDIR)
 
 #Clean only Objects
@@ -68,22 +91,28 @@ clean:
 #Full Clean, Objects and Binaries
 cleaner: clean
 	@$(RM) -rf libclithread.a
-	@$(RM) -rf $(TARGETDIR)
+	@$(RM) -rf $(APPDIR)
 
 #Pull in dependency info for *existing* .o files
 -include $(OBJECTS:.$(OBJEXT)=.$(DEPEXT))
 	
 #Build the dynamic library
 libclithread.so: $(OBJECTS)
-	$(CC) -shared -fPIC -Wl,-soname,libclithread.so.1 -o $(TARGETDIR)/$@.$(VERSION) $(OBJECTS) -lc
+	$(CC) -shared -fPIC -Wl,-soname,libclithread.so.1 -o $(APPDIR)/$@.$(VERSION) $(OBJECTS) -lc
 
 libclithread.dylib: $(OBJECTS)
-	$(CC) -dynamiclib -o $(TARGETDIR)/$@ $(OBJECTS)
+	$(CC) -dynamiclib -o $(APPDIR)/$@ $(OBJECTS)
 
-#Build static library -- same on all POSIX
+#Build static library -- same on all POSIX.  Also has debug version
 libclithread.a: $(OBJECTS)
-	ar -rcs $(TARGETDIR)/$@ $(OBJECTS)
-	ranlib $(TARGETDIR)/$@
+	ar -rcs $(APPDIR)/$@ $(OBJECTS)
+	ranlib $(APPDIR)/$@
+
+libclithread.debug.a: $(OBJECTS)
+	ar -rcs $(APPDIR)/$@ $(OBJECTS)
+	ranlib $(APPDIR)/$@
+
+
 
 #Compile
 $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT)
@@ -96,6 +125,6 @@ $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT)
 	@rm -f $(BUILDDIR)/$*.$(DEPEXT).tmp
 
 #Non-File Targets
-.PHONY: all lib pkg remake clean cleaner resources
+.PHONY: all lib pkg debug pkgdebug remake clean cleaner resources
 
 
