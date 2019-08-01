@@ -82,6 +82,10 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
         }
         else {
             newitem->args = *arg;
+            //newitem->args.app_handle= arg->app_handle;
+            //newitem->args.fd_in     = arg->fd_in;
+            //newitem->args.fd_out    = arg->fd_out;
+            //newitem->args.tctx      = arg->tctx;
         }
         
         // Link the parent
