@@ -32,6 +32,33 @@
 #include <ctype.h>
 
 
+void sub_guardtalloc_opt(clithread_item_t* clithread) {
+    if (clithread->args.guard != NULL) {
+        pthread_mutex_lock(clithread->args.guard);
+    }
+}
+
+void sub_unguardtalloc_opt(clithread_item_t* clithread) {
+    if (clithread->args.guard != NULL) {
+        pthread_mutex_unlock(clithread->args.guard);
+    }
+}
+
+void sub_guardtalloc(clithread_item_t* clithread) {
+    pthread_mutex_t* guard = (clithread->args.guard != NULL) ? \
+            clithread->args.guard : &((clithread_t*)clithread->parent)->mutex;
+    pthread_mutex_lock(guard);
+}
+
+void sub_unguardtalloc(clithread_item_t* clithread) {
+    pthread_mutex_t* guard = (clithread->args.guard != NULL) ? \
+            clithread->args.guard : &((clithread_t*)clithread->parent)->mutex;
+    pthread_mutex_unlock(guard);
+}
+
+
+
+
 int clithread_init(clithread_handle_t* handle) {
     clithread_t* ct;
     
@@ -78,14 +105,11 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
             newitem->args.app_handle= NULL;
             newitem->args.fd_in     = -1;
             newitem->args.fd_out    = -1;
+            newitem->args.guard     = NULL;
             newitem->args.tctx      = NULL;
         }
         else {
             newitem->args = *arg;
-            //newitem->args.app_handle= arg->app_handle;
-            //newitem->args.fd_in     = arg->fd_in;
-            //newitem->args.fd_out    = arg->fd_out;
-            //newitem->args.tctx      = arg->tctx;
         }
         
         // Link the parent
@@ -96,15 +120,17 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
         // To cleanup after itself
         newitem->args.clithread_self = (void*)newitem;
 
+        pthread_mutex_lock(&cth->mutex);
+
         // If a talloc context is not provided explicitly, create one
         if (newitem->args.tctx == NULL) {
+            sub_guardtalloc_opt(newitem);
             newitem->args.tctx = talloc_pooled_object(NULL, void*, (unsigned int)est_allocs, poolsize);
+            sub_unguardtalloc_opt(newitem);
             if (newitem->args.tctx == NULL) {
                 goto clithread_add_ERR;
             }
         }
-        
-        pthread_mutex_lock(&cth->mutex);
         
         // The first thing alloced to the thread internal heap is the internal data
         if (pthread_create(&newitem->client, attr, start_routine, (void*)&newitem->args) != 0) {
@@ -146,11 +172,13 @@ clithread_item_t* clithread_add(clithread_handle_t handle, const pthread_attr_t*
     if (pthread_cancel(newitem->client) == 0) {
         pthread_join(newitem->client, NULL);
     }
-    pthread_mutex_unlock(&cth->mutex);
     
     clithread_add_ERR1:
+    sub_guardtalloc_opt(newitem);
     talloc_free(newitem->args.tctx);
+    sub_unguardtalloc_opt(newitem);
     free(newitem);
+    pthread_mutex_unlock(&cth->mutex);
     
     clithread_add_ERR:
     return NULL;
@@ -206,14 +234,17 @@ static void sub_unlink_item(clithread_t* cth, clithread_item_t* item) {
 
 
 static void sub_clithread_free(void* item) {
-    // This will free all data allocated on this context via talloc
-    talloc_free( ((clithread_item_t*)item)->args.tctx);
+/// Helper function to use with clithread_exit only
+/// Frees the thread heap, then frees the thread object itself
+    clithread_item_t* clithread = item;
+    pthread_mutex_t* guard = (clithread->args.guard != NULL) ? \
+            clithread->args.guard : &((clithread_t*)(clithread->parent))->mutex;
     
-    // Now free the item itself
-    free(item);
+    pthread_mutex_lock(guard);
+    talloc_free(clithread->args.tctx);
+    pthread_mutex_unlock(guard);
+    free(clithread);
 }
-
-
 
 void clithread_exit(void* self) {
 ///@note to be used at the end of a thread that's created by clithread_add()
@@ -230,7 +261,6 @@ void clithread_exit(void* self) {
         // Thread will detach itself, meaning that no other thread needs to join it
         pthread_detach(item->client);
         pthread_mutex_unlock(&cth->mutex);
-        
         
         // This is a cleanup handler that will free the thread from the clithread
         // list, after the thread terminates.
@@ -252,7 +282,11 @@ void clithread_del(clithread_item_t* item) {
     
         pthread_cancel(item->client);
         pthread_join(item->client, NULL);
-        sub_clithread_free(item);
+        
+        sub_guardtalloc_opt(item);
+        talloc_free(item->args.tctx);
+        sub_unguardtalloc_opt(item);
+        free(item);
         
         pthread_mutex_unlock(&cth->mutex);
     }

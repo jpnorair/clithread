@@ -34,6 +34,7 @@ typedef struct {
     int fd_out;
     void* clithread_self;
     void* app_handle;
+    pthread_mutex_t* guard;
     TALLOC_CTX* tctx;
 } clithread_args_t;
 
