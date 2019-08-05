@@ -328,7 +328,7 @@ clithread_xid_t clithread_chxid(clithread_item_t* item, clithread_xid_t new_xid)
 
 
 
-void clithread_publish(clithread_handle_t handle, clithread_xid_t xid, uint8_t* msg, size_t msgsize) {
+void clithread_publish(clithread_handle_t handle, bool broadcast, clithread_xid_t xid, uint8_t* msg, size_t msgsize) {
     clithread_t* cth;
     clithread_item_t* item;
 
@@ -340,7 +340,7 @@ void clithread_publish(clithread_handle_t handle, clithread_xid_t xid, uint8_t* 
         
         /// Push the message to all clithreads that have active fd_out and matching xid.
         while (item != NULL) {
-            if ((item->args.fd_out > 0) && (item->xid == xid)) {
+            if ((item->args.fd_out > 0) && (broadcast || (item->xid == xid))) {
                 write(item->args.fd_out, msg, msgsize);
             }
             item = item->next;

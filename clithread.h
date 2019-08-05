@@ -85,7 +85,7 @@ void clithread_deinit(clithread_handle_t handle);
 
 clithread_xid_t clithread_chxid(clithread_item_t* item, clithread_xid_t new_xid);
 
-void clithread_publish(clithread_handle_t handle, clithread_xid_t xid, uint8_t* msg, size_t msgsize);
+void clithread_publish(clithread_handle_t handle, bool broadcast, clithread_xid_t xid, uint8_t* msg, size_t msgsize);
 
 
 
