@@ -20,6 +20,11 @@ THISMACHINE ?= $(shell uname -srm | sed -e 's/ /-/g')
 THISSYSTEM	?= $(shell uname -s)
 TARGET      ?= $(THISMACHINE)
 
+EXT_INC     ?= 
+EXT_LIBINC  ?= 
+EXT_LIBFLAGS?=
+EXT_LIBS    ?= 
+
 VERSION     ?= 0.5.0
 PACKAGEDIR  ?= ./../_hbpkg/$(THISMACHINE)/clithread.$(VERSION)
 
@@ -27,6 +32,8 @@ ifeq ($(THISSYSTEM),Darwin)
 # Mac can't do conditional selection of static and dynamic libs at link time.
 #	PRODUCTS := libclithread.dylib libclithread.a
 	PRODUCTS := libclithread.a
+	EXT_INC := -I/opt/homebrew/include $(EXT_INC)
+	EXT_LIBINC := -L/opt/homebrew/lib $(EXT_LIBINC)
 else ifeq ($(THISSYSTEM),Linux)
 	PRODUCTS := libclithread.so libclithread.a
 else ifeq ($(THISSYSTEM),CYGWIN_NT-10.0)
@@ -64,10 +71,10 @@ endif
 SRCDIR      := .
 INCDIR      := .
 RESDIR      := 
-LIB         := $(EXT_LIB)
+LIB         := $(EXT_LIBINC) -ltalloc $(EXT_LIBFLAGS)
 INC         := -I$(INCDIR) -I./../_hbsys/$(TARGET)/include $(EXT_INC) 
 INCDEP      := -I$(INCDIR) -I./../_hbsys/$(TARGET)/include $(EXT_INC) 
-LIBMODULES  := hbutils
+LIBMODULES  := hbutils $(EXT_LIBS)
 
 #SOURCES     := $(shell find $(SRCDIR) -type f -name "*.$(SRCEXT)")
 SOURCES     := $(shell ls $(SRCDIR)/*.$(SRCEXT))
