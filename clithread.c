@@ -328,6 +328,12 @@ clithread_xid_t clithread_chxid(clithread_item_t* item, clithread_xid_t new_xid)
 
 
 
+
+static uint8_t* sub_nullfmt(size_t* msg_size, void* app_handle) {
+    return (
+}
+
+
 void clithread_publish(clithread_handle_t handle, bool broadcast, clithread_xid_t xid, uint8_t* msg, size_t msgsize) {
     clithread_t* cth;
     clithread_item_t* item;
@@ -351,3 +357,27 @@ void clithread_publish(clithread_handle_t handle, bool broadcast, clithread_xid_
 }
 
 
+void clithread_extpublish(clithread_handle_t handle, bool broadcast, clithread_xid_t xid, clithread_fmt_fn msg_callback) {
+    clithread_t* cth;
+    clithread_item_t* item;
+    uint8_t* msg;
+    size_t msgsize;
+
+    if ((handle != NULL) && (msg_callback != NULL)) {
+        cth = handle;
+        
+        pthread_mutex_lock(&cth->mutex);
+        item = cth->head;
+        
+        /// Push the message to all clithreads that have active fd_out and matching xid.
+        while (item != NULL) {
+            if ((item->args.fd_out > 0) && (broadcast || (item->xid == xid))) {
+                msg = msg_callback(&msgsize, item->app_handle);
+                write(item->args.fd_out, msg, msgsize);
+            }
+            item = item->next;
+        }
+        
+        pthread_mutex_unlock(&cth->mutex);
+    }
+}
