@@ -328,9 +328,9 @@ clithread_xid_t clithread_chxid(clithread_item_t* item, clithread_xid_t new_xid)
 
 
 
-
+///@todo this is not implemented or used...
 static uint8_t* sub_nullfmt(size_t* msg_size, void* app_handle) {
-    return (
+    return NULL;
 }
 
 
