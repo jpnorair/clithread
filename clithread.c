@@ -31,6 +31,8 @@
 #include <unistd.h>
 #include <ctype.h>
 
+#include <sys/socket.h>
+
 
 void sub_guardtalloc_opt(clithread_item_t* clithread) {
     if (clithread->args.guard != NULL) {
