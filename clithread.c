@@ -347,7 +347,7 @@ void clithread_publish(clithread_handle_t handle, bool broadcast, clithread_xid_
         /// Push the message to all clithreads that have active fd_out and matching xid.
         while (item != NULL) {
             if ((item->args.fd_out > 0) && (broadcast || (item->xid == xid))) {
-                write(item->args.fd_out, msg, msgsize);
+                send(item->args.fd_out, msg, msgsize, 0);
             }
             item = item->next;
         }
@@ -377,7 +377,7 @@ void clithread_extpublish(clithread_handle_t handle, bool broadcast, clithread_x
         while (item != NULL) {
             if ((item->args.fd_out > 0) && (broadcast || (item->xid == xid))) {
                 msg = msg_callback(&msgsize, item->args.app_handle);
-                write(item->args.fd_out, msg, msgsize);
+                send(item->args.fd_out, msg, msgsize, 0);
             }
             item = item->next;
         }
